@@ -106,10 +106,9 @@
     
     <div id="info">
         <h3>International Contributors to California's Economic Success</h3>
-        <p>🖱️ Drag to rotate<br>
-        🔍 Scroll to zoom<br>
-        📍 Click red dots for details<br>
-        ❤️ California</p>
+        <p>Drag to rotate<br>
+        Scroll to zoom<br>
+        Click red dots for details!<br>
     </div>
 
     <div id="detail-panel">
@@ -193,7 +192,7 @@
         const stars = new THREE.Points(starGeometry, starMaterial);
         scene.add(stars);
 
-        // IMPORTANT LOCATIONS
+        // LOCATIONS
         const locations = [
             {
                 lat: 12.88,
@@ -232,7 +231,9 @@
                 lat: 52.52,
                 lon: 13.4,
                 name: "World Wars I & II",
-                description: "While they were horrible events in our World's history, in terms of California's economy, they helped develop California as a Industrial Powerhouse for the war. Creating jobs, and brought in largest amounts of money in investments",
+                description: "While catastrophic events in our World's history, World Wars I and II helped to transform California as a Industrial Powerhouse. Creating jobs, and brought in largest amounts of money in investments." + 
+                "In fact, during the second World War, California received 10% of all U.S. defense funding to produce heavy machinery like ships, aircrafts, tanks and ammunition for Allied forces." + 
+                "The rapid industrial growth created jobs faster than workers filled them, and was often called the \"Second Gold Rush\". This set California to become a technology and industrial leader in the world.",
                 image: "WW_US.jpg"
             },
             { 
@@ -272,9 +273,8 @@
                 image: "Spain_Exploration.jpg"
             },
         ];
-        // =========================================
 
-        // Convert lat/lon to 3D coordinates
+        // Convert lat and lon to 3D coordinates
         function latLonToVector3(lat, lon, radius) {
             const phi = (90 - lat) * (Math.PI / 180);
             const theta = (lon + 180) * (Math.PI / 180);
@@ -286,7 +286,7 @@
             return new THREE.Vector3(x, y, z);
         }
 
-        // Create heart shape
+        // Creating the heart shape for california
         function createHeartShape() {
             const heartShape = new THREE.Shape();
             const x = 0, y = 0;
@@ -298,7 +298,7 @@
             return heartShape;
         }
 
-        // Add California heart marker
+        // California heart marker
         const californiaLat = 36.7783;
         const californiaLon = -119.4179;
         
@@ -312,13 +312,12 @@
         heart.position.copy(californiaPosition);
         heart.scale.set(0.15, 0.15, 0.15);
         
-        // Make heart face outward from Earth
         heart.lookAt(new THREE.Vector3(0, 0, 0));
         heart.rotateX(Math.PI);
         
         earth.add(heart);
 
-        // Store markers for raycasting
+        // Store markers
         const markers = [];
 
         // Add location markers
@@ -334,7 +333,7 @@
             earth.add(marker);
             markers.push(marker);
             
-            // Pulsing glow
+            // Pulse feature
             const glowGeometry = new THREE.SphereGeometry(0.12, 16, 16);
             const glowMaterial = new THREE.MeshBasicMaterial({ 
                 color: 0xff6666,
@@ -346,7 +345,7 @@
             glow.userData = { isGlow: true };
             earth.add(glow);
             
-            // Animate glow
+            // Animate pulse
             const glowSpeed = 0.02 + Math.random() * 0.01;
             marker.userData.glow = glow;
             marker.userData.glowPhase = Math.random() * Math.PI * 2;
@@ -355,7 +354,7 @@
 
         camera.position.z = 15;
 
-        // Mouse interaction
+        // Dragging feature on earth
         let isDragging = false;
         let previousMousePosition = { x: 0, y: 0 };
         let rotation = { x: 0, y: 0 };
@@ -414,7 +413,7 @@
             }
         }
 
-        // Show location detail panel
+        // Show location information
         function showLocationDetail(location) {
             const panel = document.getElementById('detail-panel');
             const content = document.getElementById('panel-content');
@@ -434,7 +433,7 @@
             document.getElementById('detail-panel').classList.remove('open');
         });
 
-        // Zoom
+        // Zoom in or out
         renderer.domElement.addEventListener('wheel', (e) => {
             e.preventDefault();
             camera.position.z += e.deltaY * 0.01;
