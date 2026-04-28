@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive 3D Globe</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(to bottom, #0a0e27 0%, #1a1f3a 100%);
+            font-family: Arial, sans-serif;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            max-width: 300px;
+            backdrop-filter: blur(10px);
+        }
+        #info h3 {
+            margin: 0 0 10px 0;
+        }
+        #detail-panel {
+            position: absolute;
+            top: 0;
+            right: -400px;
+            width: 400px;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 30px;
+            box-sizing: border-box;
+            transition: right 0.4s ease;
+            overflow-y: auto;
+            backdrop-filter: blur(20px);
+        }
+        #detail-panel.open {
+            right: 0;
+        }
+        #detail-panel h2 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+        }
+        #detail-panel .coordinates {
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        #detail-panel .description {
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        #detail-panel .image-container {
+            width: 100%;
+            margin: 20px 0;
+        }
+        #detail-panel .image-container img {
+            width: 100%;
+            border-radius: 8px;
+        }
+        #close-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+        }
+        #close-panel:hover {
+            transform: scale(1.2);
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px 40px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">Loading Earth texture...</div>
+    
+    <div id="info">
+        <h3>International Contributors to California's Economic Success</h3>
+        <p>🖱️ Drag to rotate<br>
+        🔍 Scroll to zoom<br>
+        📍 Click red dots for details<br>
+        ❤️ California</p>
+    </div>
+
+    <div id="detail-panel">
+        <button id="close-panel">×</button>
+        <div id="panel-content"></div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Raycaster for click detection
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        // Create Earth sphere
+        const geometry = new THREE.SphereGeometry(5, 64, 64);
+        
+        // Load the Earth texture
+        const textureLoader = new THREE.TextureLoader();
+        const earthTexture = textureLoader.load(
+            'world_texture.jpg',
+            // onLoad callback
+            () => {
+                document.getElementById('loading').style.display = 'none';
+            },
+            // onProgress callback
+            undefined,
+            // onError callback
+            (error) => {
+                console.error('Error loading texture:', error);
+                document.getElementById('loading').textContent = 'Error loading texture';
+            }
+        );
+
+        const material = new THREE.MeshPhongMaterial({ 
+            map: earthTexture,
+            shininess: 5
+        });
+        
+        const earth = new THREE.Mesh(geometry, material);
+        scene.add(earth);
+
+        // Atmosphere glow
+        const atmosphereGeometry = new THREE.SphereGeometry(5.2, 64, 64);
+        const atmosphereMaterial = new THREE.MeshBasicMaterial({
+            color: 0x4488ff,
+            transparent: true,
+            opacity: 0.1,
+            side: THREE.BackSide
+        });
+        const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+        scene.add(atmosphere);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 3, 5);
+        scene.add(directionalLight);
+
+        // Stars
+        const starGeometry = new THREE.BufferGeometry();
+        const starVertices = [];
+        for (let i = 0; i < 10000; i++) {
+            const x = (Math.random() - 0.5) * 2000;
+            const y = (Math.random() - 0.5) * 2000;
+            const z = (Math.random() - 0.5) * 2000;
+            starVertices.push(x, y, z);
+        }
+        starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+        const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.7 });
+        const stars = new THREE.Points(starGeometry, starMaterial);
+        scene.add(stars);
+
+        // IMPORTANT LOCATIONS
+        const locations = [
+            {
+                lat: 12.88,
+                lon: 121.77,
+                name: "Philippines",
+                description: "The Philippines played a large role in trade early on in California's history in the 1500s through 1800s, particularly in the Monterey Bay through the Manilia Galleon Trade Route which was the first trans-pacific trade route." +
+                " Bringing luxury goods such as silk, spices, porcelain and precious metals. California often relied on these goods. " +
+                "Through this trade route Monterey Bay also served as a vital resupplier for ships traveling across the Pacific coast, and established the first Trans-Pacific Trade Route, connecting California with Asia in terms of trade.",
+                image: "Manilia_Route.jpg"
+            },
+            { 
+                lat: 39.9, 
+                lon: 116.4, 
+                name: "China",
+                description: "Chinese Immigrants were among the first wave of laborers during the Gold Rush. Immigration from China brought large amounts of laborers willing to work hard jobs, and often got exploited due to this fact. We owe a large chunk of California's economic success to these Chinese laborers. " +
+                "They played a large role in many different industries, most notably in building the First Transcontinental Railroad in the 1860s. As Chinese laborers were roughly 90% of the workforce population.",
+                image: "chinese_immigrants.webp"
+            },
+            { 
+                lat: 35.6762, 
+                lon: 139.6503, 
+                name: "Japan",
+                description: "Japan played a significant role in California's economy indirectly. Mainly arriving second after Chinese immigrants during the Gold Rush. Through the contribution of thousands of Japanese Immigrants in agricultural and industrial fields, Japanese Immigrants became a backbone in California's economy" +
+                " Despite facing extreme discrimination during these roles and during WWII, Japanese Americans persevered and continued to contribute to California's economy and culture. With specializations in high-value crops such as strawberries, they created agricultural cooperatives that dominated produce markets.",
+                image: "japanese_immigrants.jpg"
+            },
+            {
+                lat: 51.5,
+                lon: -0.127,
+                name: "United Kingdom",
+                description: "Was a primary source of international investment in California. With a long history of investments in California's early development in industries such as mining, railroads, agriculture." +
+                " The United Kingdom was also a major trading partner with California for goods and services, directly contributing to the economy.",
+                image: ""
+            },
+            {
+                lat: 52.52,
+                lon: 13.4,
+                name: "World Wars I & II",
+                description: "While they were horrible events in our World's history, in terms of California's economy, they helped develop California as a Industrial Powerhouse for the war. Creating jobs, and brought in largest amounts of money in investments",
+                image: ""
+            },
+            { 
+                lat: 19.4326, 
+                lon: -99.1332, 
+                name: "Mexico",
+                description: "Mexico played a vital role in California's history, assisting in the Secularization of Missions, and with Trade and Commerce." +
+                            " The Secularization of Missions led to the establishment of large ranchos which became a backbone in California's economy and self-sustainability by ranching livestock and crop cultivation" +
+                            " Trade between California and Mexico flourished in early years, as California would trade their natural resources for manufactured goods. Mexican Ports also served as essential in connecting California to trade from the Atlantic.",
+                image: "Mexico-1835.png"
+            },
+            { 
+                lat: 61,
+                lon: 105,
+                name: "Russia",
+                description: "The establishment of Fort Ross was a significant economic event, as the sea otter fur trade effectively connected California to global Markets across the Pacific. "+
+                            "Russia also introduced shipbuilding and agricultural techniques to California, and eventually Fort Ross would serve as an important trade post for food such as wheat and beef",
+                image: "FortRoss.gif"
+            },
+            { 
+                lat: 9.08, 
+                lon: -79.68, 
+                name: "Panama Canal",
+                description: "The Panama Canal made trade with California more accessible to Europe, Africa, and the East Coast." +
+                            " Cutting out roughly 8000 miles of travel on trips crossing from the Atlantic and Pacific Oceans." + 
+                            " This is especially important in putting West Coast Cities on the map, no longer frontier towns, but as Global Trade Hub",
+                image: "panama_canal.jpg"
+            },
+            { 
+                lat: 40.416, 
+                lon: -3.703, 
+                name: "Spain",
+                description: "Played a vital role in the exploration and development of California. "+
+                            "Investing large sums of money in order to establish missions throughout the "+
+                            "area in the late 1700s and 1800s. These would eventually lead to the establishment of other Pueblos, Presidios, Ranchos and eventually other cities. "+
+                            "The introduction of these selfsustaining societies laid the foundation for California's economy through it's infrastructure and trade networks.",
+                image: "Spain_Exploration.jpg"
+            },
+        ];
+        // =========================================
+
+        // Convert lat/lon to 3D coordinates
+        function latLonToVector3(lat, lon, radius) {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = (lon + 180) * (Math.PI / 180);
+            
+            const x = -radius * Math.sin(phi) * Math.cos(theta);
+            const y = radius * Math.cos(phi);
+            const z = radius * Math.sin(phi) * Math.sin(theta);
+            
+            return new THREE.Vector3(x, y, z);
+        }
+
+        // Create heart shape
+        function createHeartShape() {
+            const heartShape = new THREE.Shape();
+            const x = 0, y = 0;
+            heartShape.moveTo(x + 0, y + 0);
+            heartShape.bezierCurveTo(x + 0, y - 0.3, x - 0.5, y - 0.3, x - 0.5, y + 0);
+            heartShape.bezierCurveTo(x - 0.5, y + 0.3, x + 0, y + 0.6, x + 0, y + 1);
+            heartShape.bezierCurveTo(x + 0, y + 0.6, x + 0.5, y + 0.3, x + 0.5, y + 0);
+            heartShape.bezierCurveTo(x + 0.5, y - 0.3, x + 0, y - 0.3, x + 0, y + 0);
+            return heartShape;
+        }
+
+        // Add California heart marker
+        const californiaLat = 36.7783;
+        const californiaLon = -119.4179;
+        
+        const heartShape = createHeartShape();
+        const extrudeSettings = { depth: 0.1, bevelEnabled: true, bevelSegments: 2, steps: 2, bevelSize: 0.02, bevelThickness: 0.02 };
+        const heartGeometry = new THREE.ExtrudeGeometry(heartShape, extrudeSettings);
+        const heartMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000, shininess: 100 });
+        const heart = new THREE.Mesh(heartGeometry, heartMaterial);
+        
+        const californiaPosition = latLonToVector3(californiaLat, californiaLon, 5.15);
+        heart.position.copy(californiaPosition);
+        heart.scale.set(0.15, 0.15, 0.15);
+        
+        // Make heart face outward from Earth
+        heart.lookAt(new THREE.Vector3(0, 0, 0));
+        heart.rotateX(Math.PI);
+        
+        earth.add(heart);
+
+        // Store markers for raycasting
+        const markers = [];
+
+        // Add location markers
+        locations.forEach((location, index) => {
+            const markerGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+            const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xff3333 });
+            const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+            
+            const position = latLonToVector3(location.lat, location.lon, 5);
+            marker.position.copy(position);
+            marker.userData = { location: location, index: index };
+            
+            earth.add(marker);
+            markers.push(marker);
+            
+            // Pulsing glow
+            const glowGeometry = new THREE.SphereGeometry(0.12, 16, 16);
+            const glowMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xff6666,
+                transparent: true,
+                opacity: 0.3
+            });
+            const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+            glow.position.copy(position);
+            glow.userData = { isGlow: true };
+            earth.add(glow);
+            
+            // Animate glow
+            const glowSpeed = 0.02 + Math.random() * 0.01;
+            marker.userData.glow = glow;
+            marker.userData.glowPhase = Math.random() * Math.PI * 2;
+            marker.userData.glowSpeed = glowSpeed;
+        });
+
+        camera.position.z = 15;
+
+        // Mouse interaction
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let rotation = { x: 0, y: 0 };
+        let mouseDownTime = 0;
+        let mouseDownPosition = { x: 0, y: 0 };
+
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            mouseDownTime = Date.now();
+            mouseDownPosition = { x: e.clientX, y: e.clientY };
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        });
+
+        renderer.domElement.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                
+                rotation.y += deltaX * 0.005;
+                rotation.x += deltaY * 0.005;
+                
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            }
+        });
+
+        renderer.domElement.addEventListener('mouseup', (e) => {
+            isDragging = false;
+            
+            // Check if it was a click (not a drag)
+            const timeDiff = Date.now() - mouseDownTime;
+            const distMoved = Math.sqrt(
+                Math.pow(e.clientX - mouseDownPosition.x, 2) + 
+                Math.pow(e.clientY - mouseDownPosition.y, 2)
+            );
+            
+            if (timeDiff < 300 && distMoved < 5) {
+                checkIntersection(e);
+            }
+        });
+
+        renderer.domElement.addEventListener('mouseleave', () => {
+            isDragging = false;
+        });
+
+        // Click detection
+        function checkIntersection(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(markers);
+            
+            if (intersects.length > 0) {
+                const clickedMarker = intersects[0].object;
+                showLocationDetail(clickedMarker.userData.location);
+            }
+        }
+
+        // Show location detail panel
+        function showLocationDetail(location) {
+            const panel = document.getElementById('detail-panel');
+            const content = document.getElementById('panel-content');
+            
+            content.innerHTML = `
+                <h2>${location.name}</h2>
+                <div class="coordinates">${location.lat.toFixed(4)}°, ${location.lon.toFixed(4)}°</div>
+                ${location.image ? `<div class="image-container"><img src="${location.image}" alt="${location.name}"></div>` : ''}
+                <div class="description">${location.description}</div>
+            `;
+            
+            panel.classList.add('open');
+        }
+
+        // Close panel
+        document.getElementById('close-panel').addEventListener('click', () => {
+            document.getElementById('detail-panel').classList.remove('open');
+        });
+
+        // Zoom
+        renderer.domElement.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            camera.position.z += e.deltaY * 0.01;
+            camera.position.z = Math.max(8, Math.min(30, camera.position.z));
+        });
+
+        // Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Animation
+        let heartBeatPhase = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            earth.rotation.x = rotation.x;
+            earth.rotation.y = rotation.y;
+            atmosphere.rotation.x = rotation.x;
+            atmosphere.rotation.y = rotation.y;
+            
+            // Animate marker glows
+            markers.forEach(marker => {
+                if (marker.userData.glow) {
+                    marker.userData.glowPhase += marker.userData.glowSpeed;
+                    marker.userData.glow.material.opacity = 0.3 + Math.sin(marker.userData.glowPhase) * 0.3;
+                }
+            });
+            
+            // Animate heart beating
+            heartBeatPhase += 0.05;
+            const heartScale = 0.15 + Math.sin(heartBeatPhase * 2) * 0.02;
+            heart.scale.set(heartScale, heartScale, heartScale);
+            
+            renderer.render(scene, camera);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
